@@ -17,6 +17,6 @@
     "jsx": "react-jsx",
     "types": ["vitest/globals"]
   },
-  "include": ["src", "server", "vite.config.ts"],
+  "include": ["src", "server", "netlify", "vite.config.ts"],
   "references": []
 }

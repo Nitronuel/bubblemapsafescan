@@ -29,6 +29,16 @@ npm run build
 npm test
 ```
 
+## Netlify
+
+Deploy from GitHub with the existing `netlify.toml`. Add this server-side environment variable in Netlify:
+
+```bash
+BUBBLEMAPS_API_KEY=
+```
+
+The browser calls `/api/bubblemaps/*`, and Netlify routes those requests to `netlify/functions/bubblemaps.ts`.
+
 ## Environment
 
 Use server-only keys without a `VITE_` prefix:
