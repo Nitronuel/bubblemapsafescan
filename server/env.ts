@@ -23,7 +23,7 @@ export function loadEnvFile(filename: string, override = false) {
 
 export function readEnv(...keys: string[]) {
   for (const key of keys) {
-    const value = process.env[key]?.trim();
+    const value = process.env[key]?.trim().replace(/^['"]|['"]$/g, '');
     if (value) return value;
   }
   return '';
