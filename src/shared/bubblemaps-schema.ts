@@ -137,3 +137,17 @@ export const BubblemapsScanReportSchema = z.object({
     chains: EndpointResultSchema(ChainDetailsSchema.array())
   })
 }).passthrough();
+
+export const TokenNetworkDetectionSchema = z.object({
+  chain: z.string(),
+  address: z.string(),
+  confidence: z.enum(['high', 'medium', 'low']),
+  source: z.string(),
+  matches: z.array(z.object({
+    chain: z.string(),
+    name: nullableString,
+    symbol: nullableString,
+    isIndexed: z.boolean().optional(),
+    transfersCount: z.number().nullable().optional()
+  }))
+}).passthrough();

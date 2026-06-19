@@ -153,6 +153,20 @@ export type BubblemapsScanReport = {
   };
 };
 
+export type TokenNetworkDetection = {
+  chain: BubblemapsChain;
+  address: string;
+  confidence: 'high' | 'medium' | 'low';
+  source: string;
+  matches: Array<{
+    chain: BubblemapsChain;
+    name?: string | null;
+    symbol?: string | null;
+    isIndexed?: boolean;
+    transfersCount?: number | null;
+  }>;
+};
+
 export const BUBBLEMAPS_CHAINS: Array<{ id: BubblemapsChain; label: string; family: 'EVM' | 'Solana' | 'Other' }> = [
   { id: 'eth', label: 'Ethereum', family: 'EVM' },
   { id: 'base', label: 'Base', family: 'EVM' },
@@ -189,7 +203,7 @@ export function isLikelyBubblemapsAddress(address: string, chain: BubblemapsChai
   const value = address.trim();
   if (!value) return false;
   if (chain === 'solana') return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(value);
-  if (chain === 'ton') return value.length >= 32;
+  if (chain === 'ton') return !value.toLowerCase().startsWith('0x') && value.length >= 32;
   if (chain === 'tron') return /^T[1-9A-HJ-NP-Za-km-z]{25,40}$/.test(value);
   return /^0x[a-fA-F0-9]{40}$/.test(value);
 }

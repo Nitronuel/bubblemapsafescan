@@ -24,6 +24,12 @@ export class BubblemapsRoutes {
       return;
     }
 
+    if (requestUrl.pathname === '/api/bubblemaps/detect-network') {
+      const address = requestUrl.searchParams.get('address')?.trim() || '';
+      sendJson(response, 200, await this.reports.detectNetwork(address));
+      return;
+    }
+
     let parsed: ReturnType<typeof parseBubblemapsRequest>;
     try {
       parsed = parseBubblemapsRequest(requestUrl.searchParams);

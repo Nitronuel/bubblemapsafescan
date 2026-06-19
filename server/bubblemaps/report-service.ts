@@ -2,10 +2,15 @@ import type {
   BubblemapsChain,
   BubblemapsScanReport,
   ChainDetails,
+  TokenNetworkDetection,
   TokenDetails,
   TokenHolder,
   TokenMap,
   TokenMetrics
+} from '../../src/shared/bubblemaps';
+import {
+  BUBBLEMAPS_CHAINS,
+  isLikelyBubblemapsAddress
 } from '../../src/shared/bubblemaps';
 import {
   ChainDetailsSchema,
@@ -21,6 +26,8 @@ import { validateBubblemapsRequest } from './validation';
 export class BubblemapsReportService {
   private readonly reportCache = new TtlCache();
   private readonly reportInflight = new Map<string, Promise<BubblemapsScanReport>>();
+  private readonly detectionCache = new TtlCache();
+  private readonly detectionInflight = new Map<string, Promise<TokenNetworkDetection | null>>();
 
   constructor(private readonly client: BubblemapsClient) {}
 
@@ -39,6 +46,88 @@ export class BubblemapsReportService {
       });
     this.reportInflight.set(reportCacheKey, request);
     return request;
+  }
+
+  async detectNetwork(address: string): Promise<TokenNetworkDetection | null> {
+    const normalizedAddress = address.trim();
+    if (!normalizedAddress) return null;
+
+    const candidateChains = BUBBLEMAPS_CHAINS
+      .map((item) => item.id)
+      .filter((chain) => isLikelyBubblemapsAddress(normalizedAddress, chain));
+
+    if (!candidateChains.length) return null;
+
+    const cacheKey = `detect:${normalizedAddress.toLowerCase()}`;
+    const cached = this.detectionCache.get(cacheKey);
+    if (cached) return cached.value as TokenNetworkDetection | null;
+
+    const inflight = this.detectionInflight.get(cacheKey);
+    if (inflight) return inflight;
+
+    const request = this.fetchNetworkDetection(candidateChains, normalizedAddress, cacheKey)
+      .finally(() => {
+        this.detectionInflight.delete(cacheKey);
+      });
+    this.detectionInflight.set(cacheKey, request);
+    return request;
+  }
+
+  private async fetchNetworkDetection(candidateChains: BubblemapsChain[], address: string, cacheKey: string) {
+    const encodedAddress = encodeURIComponent(address);
+    const responses = await Promise.all(candidateChains.map(async (chain) => {
+      const token = await this.client.fetchEndpoint<TokenDetails>({
+        path: `/v0/tokens/metadata/${encodeURIComponent(chain)}/${encodedAddress}`,
+        cacheKey: `token:${chain}:${address.toLowerCase()}`,
+        endpointKey: 'token-detect',
+        params: { return_token_stats: true },
+        schema: TokenDetailsSchema
+      });
+      return { chain, token };
+    }));
+
+    const matches = responses
+      .filter(({ token }) => {
+        if (token.status !== 'available' || !token.data) return false;
+        const metadata = token.data.metadata;
+        const hasNamedToken = [metadata.name, metadata.symbol].some((value) => value && value !== '???');
+        return metadata.is_indexed || hasNamedToken;
+      })
+      .map(({ chain, token }) => ({
+        chain,
+        name: token.data?.metadata.name,
+        symbol: token.data?.metadata.symbol,
+        isIndexed: token.data?.metadata.is_indexed,
+        transfersCount: token.data?.stats?.transfers_count ?? null
+      }))
+      .sort((left, right) => {
+        if (left.isIndexed !== right.isIndexed) return left.isIndexed ? -1 : 1;
+        return (right.transfersCount || 0) - (left.transfersCount || 0);
+      });
+
+    if (!matches.length) {
+      const fallback = candidateChains.length === 1
+        ? {
+            chain: candidateChains[0],
+            address,
+            confidence: 'medium' as const,
+            source: 'Address format',
+            matches: []
+          }
+        : null;
+      this.detectionCache.set(cacheKey, fallback, BUBBLEMAPS_DEFAULT_CACHE_TTL_MS, new Date().toISOString());
+      return fallback;
+    }
+
+    const detection: TokenNetworkDetection = {
+      chain: matches[0].chain,
+      address,
+      confidence: matches.length === 1 ? 'high' : 'medium',
+      source: 'Bubblemaps token metadata',
+      matches
+    };
+    this.detectionCache.set(cacheKey, detection, BUBBLEMAPS_DEFAULT_CACHE_TTL_MS, new Date().toISOString());
+    return detection;
   }
 
   private async fetchReport(chain: BubblemapsChain, address: string, reportCacheKey: string): Promise<BubblemapsScanReport> {

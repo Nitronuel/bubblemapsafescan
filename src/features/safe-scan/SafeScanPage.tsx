@@ -87,6 +87,7 @@ export function SafeScanPage() {
   const [report, setReport] = useState<BubblemapsScanReport | null>(null);
   const [detectedNetwork, setDetectedNetwork] = useState<DetectedTokenNetwork | null>(null);
   const [detectingNetwork, setDetectingNetwork] = useState(false);
+  const [manualChainOverride, setManualChainOverride] = useState(false);
 
   const normalizedAddress = address.trim();
   const addressSupported = !normalizedAddress || isLikelyBubblemapsAddress(normalizedAddress, chain);
@@ -107,19 +108,28 @@ export function SafeScanPage() {
       return;
     }
 
+    let cancelled = false;
     const timer = window.setTimeout(() => {
       setDetectingNetwork(true);
       SafeScanService.detectTokenNetwork(normalizedAddress)
         .then((detection) => {
+          if (cancelled) return;
           setDetectedNetwork(detection);
-          if (detection && detection.chain !== chain) setChain(detection.chain);
+          if (detection && detection.chain !== chain && !manualChainOverride) setChain(detection.chain);
         })
-        .catch(() => setDetectedNetwork(null))
-        .finally(() => setDetectingNetwork(false));
+        .catch(() => {
+          if (!cancelled) setDetectedNetwork(null);
+        })
+        .finally(() => {
+          if (!cancelled) setDetectingNetwork(false);
+        });
     }, 350);
 
-    return () => window.clearTimeout(timer);
-  }, [normalizedAddress, loading]);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [normalizedAddress, loading, chain, manualChainOverride]);
 
   useEffect(() => {
     const queryAddress = searchParams.get('address')?.trim() || '';
@@ -151,6 +161,7 @@ export function SafeScanPage() {
     setError(null);
     setDetectedNetwork(null);
     setDetectingNetwork(false);
+    setManualChainOverride(false);
     setAddress('');
     setChain('eth');
   }
@@ -165,8 +176,14 @@ export function SafeScanPage() {
         detectedNetwork={detectedNetwork}
         detectingNetwork={detectingNetwork}
         addressSupported={addressSupported}
-        onAddressChange={setAddress}
-        onChainChange={setChain}
+        onAddressChange={(nextAddress) => {
+          setAddress(nextAddress);
+          setManualChainOverride(false);
+        }}
+        onChainChange={(nextChain) => {
+          setChain(nextChain);
+          setManualChainOverride(true);
+        }}
         onSubmit={(event) => {
           event?.preventDefault();
           void runScan();

@@ -32,6 +32,8 @@ export function SafeScanEmptyState({
   onSubmit: (event?: FormEvent) => void;
 }) {
   const normalizedAddress = address.trim();
+  const detectionLabel = detectedNetwork ? getBubblemapsChainLabel(detectedNetwork.chain) : '';
+  const matchCount = detectedNetwork?.matches.length || 0;
 
   return (
     <div className="safe-scan-empty">
@@ -55,7 +57,13 @@ export function SafeScanEmptyState({
         </button>
       </form>
       {detectingNetwork ? <div className="form-note">Detecting chain from address...</div> : null}
-      {detectedNetwork ? <div className="form-note">Detected {getBubblemapsChainLabel(detectedNetwork.chain)} from {detectedNetwork.source}.</div> : null}
+      {detectedNetwork ? (
+        <div className="form-note">
+          {detectedNetwork.source === 'Bubblemaps token metadata'
+            ? `Detected ${detectionLabel}${matchCount > 1 ? ` from ${matchCount} metadata matches` : ''}.`
+            : `Detected ${detectionLabel} from ${detectedNetwork.source}.`}
+        </div>
+      ) : null}
       {!addressSupported ? <div className="form-error">{chain === 'solana' ? 'Solana scans require a valid Solana token address.' : chain === 'tron' ? 'Tron scans require a valid Tron token address.' : chain === 'ton' ? 'TON scans require a valid TON token address.' : 'EVM scans require a valid 0x token address.'}</div> : null}
       {error ? <div className="form-error" role="alert">{error}</div> : null}
       <Card className="analysis-card">

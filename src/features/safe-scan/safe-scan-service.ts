@@ -2,16 +2,13 @@ import { apiUrl } from '../../config';
 import {
   type BubblemapsChain,
   type BubblemapsScanReport,
+  type TokenNetworkDetection,
   BUBBLEMAPS_CHAINS,
   isLikelyBubblemapsAddress
 } from '../../shared/bubblemaps';
-import { BubblemapsScanReportSchema } from '../../shared/bubblemaps-schema';
+import { BubblemapsScanReportSchema, TokenNetworkDetectionSchema } from '../../shared/bubblemaps-schema';
 
-export type DetectedTokenNetwork = {
-  chain: BubblemapsChain;
-  confidence: 'high' | 'medium' | 'low';
-  source: string;
-};
+export type DetectedTokenNetwork = TokenNetworkDetection;
 
 const inFlightReports = new Map<string, Promise<BubblemapsScanReport>>();
 const evmChains = BUBBLEMAPS_CHAINS.filter((item) => item.family === 'EVM').map((item) => item.id);
@@ -56,13 +53,37 @@ export const SafeScanService = {
     const value = address.trim();
     if (!value) return null;
     if (/^0x[a-fA-F0-9]{40}$/.test(value)) {
-      return { chain: evmChains.includes('eth') ? 'eth' : evmChains[0], confidence: 'low', source: 'Address format' };
+      const params = new URLSearchParams({ address: value });
+      const detection = await fetchJson<DetectedTokenNetwork | null>(`/api/bubblemaps/detect-network?${params.toString()}`);
+      return detection ? TokenNetworkDetectionSchema.parse(detection) as DetectedTokenNetwork : {
+        chain: evmChains.includes('eth') ? 'eth' : evmChains[0],
+        address: value,
+        confidence: 'low',
+        source: 'Address format',
+        matches: []
+      };
     }
     if (/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(value)) {
-      return { chain: 'solana', confidence: 'medium', source: 'Address format' };
+      const params = new URLSearchParams({ address: value });
+      const detection = await fetchJson<DetectedTokenNetwork | null>(`/api/bubblemaps/detect-network?${params.toString()}`);
+      return detection ? TokenNetworkDetectionSchema.parse(detection) as DetectedTokenNetwork : {
+        chain: 'solana',
+        address: value,
+        confidence: 'medium',
+        source: 'Address format',
+        matches: []
+      };
     }
     if (/^T[1-9A-HJ-NP-Za-km-z]{25,40}$/.test(value)) {
-      return { chain: 'tron', confidence: 'medium', source: 'Address format' };
+      const params = new URLSearchParams({ address: value });
+      const detection = await fetchJson<DetectedTokenNetwork | null>(`/api/bubblemaps/detect-network?${params.toString()}`);
+      return detection ? TokenNetworkDetectionSchema.parse(detection) as DetectedTokenNetwork : {
+        chain: 'tron',
+        address: value,
+        confidence: 'medium',
+        source: 'Address format',
+        matches: []
+      };
     }
     return null;
   }
